@@ -182,17 +182,30 @@ class VDIUserFilterApp:
         return df_comp
     
     def get_most_recent_sessions(self):
-        """Get the most recent session for each user (case sensitive)"""
+        """Get the most recent session for each user.
+
+        Priority:
+        1) Session End Time is null/empty (active session)
+        2) Most recent Session End Time
+        """
         df_with_parsed = self.df_computation.copy()
-        
-        # Parse datetime for sorting by most recent session end time
+
+        # Parse datetime for sorting by most recent session end time.
         df_with_parsed['Session End Time Parsed'] = df_with_parsed['Session End Time'].apply(self.parse_datetime)
-        
-        # Sort by Associated User and Session End Time, keep only the most recent
-        df_recent = df_with_parsed.sort_values('Session End Time Parsed', ascending=False).drop_duplicates(
+
+        # Determine if Session End Time is null/empty; treat common placeholders as empty.
+        end_time_clean = df_with_parsed['Session End Time'].fillna('').astype(str).str.strip().str.lower()
+        df_with_parsed['Session End Time Is Empty'] = end_time_clean.isin(['', 'nan', 'nat', 'none'])
+
+        # Sort so rows with empty end time come first, then by most recent end time.
+        # Keep only one row per user after sorting by that priority.
+        df_recent = df_with_parsed.sort_values(
+            by=['Session End Time Is Empty', 'Session End Time Parsed'],
+            ascending=[False, False]
+        ).drop_duplicates(
             subset=['Associated User'], keep='first'
         ).sort_index()
-        
+
         return df_recent
     
     def create_summary_worksheet(self):
